@@ -1,0 +1,47 @@
+name: 🌐 Deploy Feedback Form
+
+on:
+  # Re-deploy whenever code is pushed to main
+  push:
+    branches: [main]
+
+  # Also run manually
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    name: Build & Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔐 Inject secrets into feedback form
+        env:
+          FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
+          GITHUB_REPO:    ${{ github.repository }}
+        run: |
+          mkdir -p gh-pages
+          # Replace the two placeholders with real values
+          sed \
+            -e "s|__FEEDBACK_TOKEN__|${FEEDBACK_TOKEN}|g" \
+            -e "s|__GITHUB_REPO__|${GITHUB_REPO}|g" \
+            docs/feedback.template.html > gh-pages/feedback.html
+          echo "✅ feedback.html built"
+
+      - name: 🚀 Push to gh-pages branch
+        run: |
+          cd gh-pages
+          git init
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add .
+          git commit -m "Deploy feedback form [skip ci]"
+          git push --force \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" \
+            HEAD:gh-pages
