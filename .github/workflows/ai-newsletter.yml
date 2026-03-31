@@ -32,5 +32,6 @@ jobs:
           GEMINI_API_KEY:       ${{ secrets.GEMINI_API_KEY }}
           GMAIL_ADDRESS:        ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD:   ${{ secrets.GMAIL_APP_PASSWORD }}
+          SERPER_API_KEY:       ${{ secrets.SERPER_API_KEY }}
           GITHUB_REPOSITORY:    ${{ github.repository }}
         run: python newsletter.py
