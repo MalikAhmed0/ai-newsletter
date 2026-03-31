@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Customize Your AI Pulse Newsletter</title>
+  <style>
+    :root {
+      --bg: #0f0c29;
+      --surface: #1a1740;
+      --surface2: #221e52;
+      --border: #2e2a6e;
+      --accent: #6366f1;
+      --accent2: #8b5cf6;
+      --gold: #f59e0b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --success: #10b981;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 16px 60px;
+    }
+    .card {
+      width: 100%;
+      max-width: 580px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      padding: 36px 32px 28px;
+      text-align: center;
+    }
+    .badge {
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 10px;
+    }
+    .header h1 {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+    .header p {
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+    }
+    .email-chip {
+      display: inline-block;
+      margin-top: 12px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 20px;
+      padding: 5px 16px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .body { padding: 28px 28px 32px; }
+    .section { margin-bottom: 28px; }
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    /* Stars */
+    .stars { display: flex; gap: 8px; }
+    .star-btn {
+      background: none;
+      border: none;
+      font-size: 36px;
+      cursor: pointer;
+      color: var(--border);
+      transition: color 0.15s, transform 0.1s;
+      line-height: 1;
+      padding: 2px;
+    }
+    .star-btn:hover, .star-btn.active { color: var(--gold); transform: scale(1.15); }
+
+    /* Textarea */
+    textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      padding: 14px 16px;
+      resize: vertical;
+      min-height: 110px;
+      line-height: 1.6;
+      transition: border-color 0.2s;
+    }
+    textarea:focus { outline: none; border-color: var(--accent); }
+    textarea::placeholder { color: var(--muted); }
+
+    /* Pill selects */
+    .pills { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 7px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: var(--muted);
+      user-select: none;
+    }
+    .pill:hover { border-color: var(--accent); color: var(--text); }
+    .pill.selected {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* Submit */
+    .submit-btn {
+      width: 100%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.3px;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .submit-btn:hover { opacity: 0.92; transform: translateY(-1px); }
+    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* Status messages */
+    .status {
+      display: none;
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 14px;
+      margin-top: 14px;
+      line-height: 1.5;
+      text-align: center;
+    }
+    .status.success { background: rgba(16,185,129,0.15); border: 1px solid var(--success); color: var(--success); display: block; }
+    .status.error   { background: rgba(239,68,68,0.12);  border: 1px solid var(--danger);  color: var(--danger);  display: block; }
+    .status.loading { background: rgba(99,102,241,0.12); border: 1px solid var(--accent);  color: var(--accent);  display: block; }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 24px 0;
+    }
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+    .history-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="header">
+    <div class="badge">◈ The AI Pulse ◈</div>
+    <h1>Customize Your Newsletter</h1>
+    <p>Your feedback shapes only <em>your</em> edition.</p>
+    <div class="email-chip" id="emailChip">Loading…</div>
+  </div>
+
+  <div class="body">
+
+    <!-- Previous prefs summary -->
+    <div class="section" id="historySection" style="display:none;">
+      <div class="section-label">Your Current Settings</div>
+      <div class="history-box" id="historyBox"></div>
+    </div>
+
+    <!-- Rating -->
+    <div class="section">
+      <div class="section-label">Rate Today's Newsletter</div>
+      <div class="stars" id="stars">
+        <button class="star-btn" data-v="1">★</button>
+        <button class="star-btn" data-v="2">★</button>
+        <button class="star-btn" data-v="3">★</button>
+        <button class="star-btn" data-v="4">★</button>
+        <button class="star-btn" data-v="5">★</button>
+      </div>
+      <p class="hint" id="ratingHint">Click a star to rate</p>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Detail level -->
+    <div class="section">
+      <div class="section-label">Summary Depth</div>
+      <div class="pills" id="detailPills">
+        <div class="pill" data-group="detail" data-v="brief">Brief — 1 sentence each</div>
+        <div class="pill" data-group="detail" data-v="standard">Standard — 2–3 sentences</div>
+        <div class="pill" data-group="detail" data-v="deep">Deep — full context & background</div>
+      </div>
+    </div>
+
+    <!-- Tone -->
+    <div class="section">
+      <div class="section-label">Preferred Tone</div>
+      <div class="pills" id="tonePills">
+        <div class="pill" data-group="tone" data-v="casual">Casual & conversational</div>
+        <div class="pill" data-group="tone" data-v="professional">Professional & formal</div>
+        <div class="pill" data-group="tone" data-v="punchy">Bold & punchy</div>
+        <div class="pill" data-group="tone" data-v="analytical">Analytical & critical</div>
+      </div>
+    </div>
+
+    <!-- More of -->
+    <div class="section">
+      <div class="section-label">I Want MORE Of</div>
+      <div class="pills" id="morePills">
+        <div class="pill" data-group="more" data-v="tools">Practical tools</div>
+        <div class="pill" data-group="more" data-v="research">Research & papers</div>
+        <div class="pill" data-group="more" data-v="business">Business impact</div>
+        <div class="pill" data-group="more" data-v="policy">Policy & safety</div>
+        <div class="pill" data-group="more" data-v="models">New models & releases</div>
+        <div class="pill" data-group="more" data-v="wild">Wild & unusual stories</div>
+      </div>
+    </div>
+
+    <!-- Avoid -->
+    <div class="section">
+      <div class="section-label">I Want LESS Of</div>
+      <div class="pills" id="avoidPills">
+        <div class="pill" data-group="avoid" data-v="tools">Practical tools</div>
+        <div class="pill" data-group="avoid" data-v="research">Research & papers</div>
+        <div class="pill" data-group="avoid" data-v="business">Business impact</div>
+        <div class="pill" data-group="avoid" data-v="policy">Policy & safety</div>
+        <div class="pill" data-group="avoid" data-v="models">New models & releases</div>
+        <div class="pill" data-group="avoid" data-v="wild">Wild & unusual stories</div>
+      </div>
+    </div>
+
+    <!-- Free text -->
+    <div class="section">
+      <div class="section-label">Any Other Instructions?</div>
+      <textarea
+        id="instructions"
+        placeholder="e.g. 'Focus on things I can actually use at work. Skip anything about AI art. Make the summaries shorter. Add more context on research papers.'"
+      ></textarea>
+      <p class="hint">
+        Be as specific as you like. Gemini reads this directly before writing your newsletter each morning.
+      </p>
+    </div>
+
+    <div class="divider"></div>
+
+    <button class="submit-btn" id="submitBtn" onclick="submitFeedback()">
+      Save My Preferences
+    </button>
+    <div class="status" id="status"></div>
+
+  </div>
+</div>
+
+<script>
+  // ── Config injected at deploy time ──────────────────────────────────────────
+  const GITHUB_TOKEN = "__FEEDBACK_TOKEN__";
+  const GITHUB_REPO  = "__GITHUB_REPO__";   // e.g. "malikXYZ/ai-newsletter"
+
+  // ── State ───────────────────────────────────────────────────────────────────
+  const params    = new URLSearchParams(location.search);
+  const email     = params.get("email") || "";
+  const uid       = params.get("uid")   || "";
+  const preRating = parseInt(params.get("rating") || "0", 10);
+
+  let selectedRating = 0;
+  let selectedDetail = "";
+  let selectedTone   = "";
+  let selectedMore   = [];
+  let selectedAvoid  = [];
+  let existingPrefs  = null;
+
+  const RATING_LABELS = ["", "😕 Not great", "😐 Okay", "🙂 Good", "😊 Really good", "🤩 Excellent!"];
+
+  // ── Init ────────────────────────────────────────────────────────────────────
+  document.getElementById("emailChip").textContent = email || "your email";
+
+  if (!uid || !GITHUB_REPO || GITHUB_REPO === "__GITHUB_REPO__") {
+    showStatus("error", "Invalid feedback link. Please use the link from your newsletter email.");
+  } else {
+    loadExistingPrefs();
+  }
+
+  // Pre-select rating from email star click
+  if (preRating >= 1 && preRating <= 5) {
+    setTimeout(() => setRating(preRating), 300);
+  }
+
+  // ── Star Rating ──────────────────────────────────────────────────────────────
+  document.querySelectorAll(".star-btn").forEach(btn => {
+    btn.addEventListener("click", () => setRating(parseInt(btn.dataset.v)));
+    btn.addEventListener("mouseover", () => highlightStars(parseInt(btn.dataset.v)));
+    btn.addEventListener("mouseout", () => highlightStars(selectedRating));
+  });
+
+  function setRating(v) {
+    selectedRating = v;
+    highlightStars(v);
+    document.getElementById("ratingHint").textContent = RATING_LABELS[v] || "";
+  }
+
+  function highlightStars(v) {
+    document.querySelectorAll(".star-btn").forEach(b => {
+      b.classList.toggle("active", parseInt(b.dataset.v) <= v);
+    });
+  }
+
+  // ── Pills ────────────────────────────────────────────────────────────────────
+  document.querySelectorAll(".pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      const group = pill.dataset.group;
+      const val   = pill.dataset.v;
+
+      if (group === "detail") {
+        document.querySelectorAll('[data-group="detail"]').forEach(p => p.classList.remove("selected"));
+        pill.classList.toggle("selected");
+        selectedDetail = pill.classList.contains("selected") ? val : "";
+      } else if (group === "tone") {
+        document.querySelectorAll('[data-group="tone"]').forEach(p => p.classList.remove("selected"));
+        pill.classList.toggle("selected");
+        selectedTone = pill.classList.contains("selected") ? val : "";
+      } else if (group === "more") {
+        pill.classList.toggle("selected");
+        selectedMore = [...document.querySelectorAll('[data-group="more"].selected')].map(p => p.dataset.v);
+      } else if (group === "avoid") {
+        pill.classList.toggle("selected");
+        selectedAvoid = [...document.querySelectorAll('[data-group="avoid"].selected')].map(p => p.dataset.v);
+      }
+    });
+  });
+
+  // ── Load existing prefs ──────────────────────────────────────────────────────
+  async function loadExistingPrefs() {
+    try {
+      const url = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/preferences/${uid}.json`;
+      const res = await fetch(url + "?t=" + Date.now());
+      if (!res.ok) return;
+      existingPrefs = await res.json();
+      populateExistingPrefs(existingPrefs);
+    } catch (_) { /* no prefs yet */ }
+  }
+
+  function populateExistingPrefs(prefs) {
+    // Show history
+    const lines = [];
+    if (prefs.rating_history?.length) {
+      const avg = (prefs.rating_history.reduce((a,b)=>a+b,0)/prefs.rating_history.length).toFixed(1);
+      lines.push(`⭐ Rating history: ${prefs.rating_history.join(", ")} (avg ${avg})`);
+    }
+    if (prefs.detail_level)    lines.push(`📏 Detail level: ${prefs.detail_level}`);
+    if (prefs.tone_preference) lines.push(`🎨 Tone: ${prefs.tone_preference}`);
+    if (prefs.more_of?.length) lines.push(`➕ More of: ${prefs.more_of.join(", ")}`);
+    if (prefs.avoid?.length)   lines.push(`➖ Less of: ${prefs.avoid.join(", ")}`);
+    if (prefs.instructions)    lines.push(`💬 Instructions: "${prefs.instructions}"`);
+    if (prefs.updated_at)      lines.push(`🕐 Last updated: ${prefs.updated_at.split("T")[0]}`);
+
+    if (lines.length) {
+      document.getElementById("historySection").style.display = "block";
+      document.getElementById("historyBox").innerHTML = lines.join("<br>");
+    }
+
+    // Pre-fill form
+    if (prefs.detail_level) {
+      const el = document.querySelector(`[data-group="detail"][data-v="${prefs.detail_level}"]`);
+      if (el) { el.classList.add("selected"); selectedDetail = prefs.detail_level; }
+    }
+    if (prefs.tone_preference) {
+      const el = document.querySelector(`[data-group="tone"][data-v="${prefs.tone_preference}"]`);
+      if (el) { el.classList.add("selected"); selectedTone = prefs.tone_preference; }
+    }
+    (prefs.more_of || []).forEach(v => {
+      const el = document.querySelector(`[data-group="more"][data-v="${v}"]`);
+      if (el) { el.classList.add("selected"); selectedMore.push(v); }
+    });
+    (prefs.avoid || []).forEach(v => {
+      const el = document.querySelector(`[data-group="avoid"][data-v="${v}"]`);
+      if (el) { el.classList.add("selected"); selectedAvoid.push(v); }
+    });
+    if (prefs.instructions) {
+      document.getElementById("instructions").value = prefs.instructions;
+    }
+  }
+
+  // ── Submit ────────────────────────────────────────────────────────────────────
+  async function submitFeedback() {
+    if (!uid) {
+      showStatus("error", "Missing user ID. Please use the link from your newsletter email.");
+      return;
+    }
+    if (!GITHUB_TOKEN || GITHUB_TOKEN === "__FEEDBACK_TOKEN__") {
+      showStatus("error", "Feedback form is not configured yet. Please check back after setup.");
+      return;
+    }
+
+    const btn = document.getElementById("submitBtn");
+    btn.disabled = true;
+    showStatus("loading", "Saving your preferences…");
+
+    // Build updated preferences object
+    const oldHistory = existingPrefs?.rating_history || [];
+    const newHistory = selectedRating > 0
+      ? [...oldHistory, selectedRating].slice(-10)  // keep last 10 ratings
+      : oldHistory;
+
+    const prefs = {
+      email,
+      rating_history:   newHistory,
+      detail_level:     selectedDetail || existingPrefs?.detail_level || "standard",
+      tone_preference:  selectedTone   || existingPrefs?.tone_preference || "casual",
+      more_of:          selectedMore.length  ? selectedMore  : (existingPrefs?.more_of  || []),
+      avoid:            selectedAvoid.length ? selectedAvoid : (existingPrefs?.avoid    || []),
+      instructions:     document.getElementById("instructions").value.trim() || existingPrefs?.instructions || "",
+      updated_at:       new Date().toISOString(),
+    };
+
+    const filePath = `preferences/${uid}.json`;
+    const content  = btoa(JSON.stringify(prefs, null, 2));
+
+    // Get current file SHA (needed for updates)
+    let sha = null;
+    try {
+      const getRes = await fetch(
+        `https://api.github.com/repos/${GITHUB_REPO}/contents/${filePath}`,
+        { headers: { Authorization: `token ${GITHUB_TOKEN}`, Accept: "application/vnd.github.v3+json" } }
+      );
+      if (getRes.ok) {
+        const getJson = await getRes.json();
+        sha = getJson.sha;
+      }
+    } catch (_) {}
+
+    // Write the file
+    const body = {
+      message: `Update preferences for ${email.split("@")[0]} [skip ci]`,
+      content,
+      ...(sha ? { sha } : {}),
+    };
+
+    try {
+      const putRes = await fetch(
+        `https://api.github.com/repos/${GITHUB_REPO}/contents/${filePath}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `token ${GITHUB_TOKEN}`,
+            Accept: "application/vnd.github.v3+json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        }
+      );
+
+      if (!putRes.ok) {
+        const err = await putRes.json();
+        throw new Error(err.message || putRes.statusText);
+      }
+
+      existingPrefs = prefs;
+      showStatus(
+        "success",
+        `✅ Preferences saved! Your next newsletter will reflect these changes.\n\n` +
+        (selectedRating ? `You rated today: ${"★".repeat(selectedRating)}${"☆".repeat(5-selectedRating)}\n` : "") +
+        (prefs.instructions ? `Instructions noted: "${prefs.instructions.slice(0,80)}${prefs.instructions.length>80?"…":""}"` : "")
+      );
+    } catch (err) {
+      showStatus("error", `❌ Save failed: ${err.message}. Please try again.`);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function showStatus(type, msg) {
+    const el = document.getElementById("status");
+    el.className = `status ${type}`;
+    el.textContent = msg;
+    el.style.display = "block";
+    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+</script>
+</body>
+</html>
