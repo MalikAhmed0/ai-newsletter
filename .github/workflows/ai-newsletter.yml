@@ -1,0 +1,36 @@
+name: ⚡ Daily AI Newsletter
+
+on:
+  # 10:00 AM PKT = 05:00 UTC
+  schedule:
+    - cron: "0 5 * * *"
+
+  # Run manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  send-newsletter:
+    name: Generate & Send
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: 📰 Send newsletter
+        env:
+          GEMINI_API_KEY:       ${{ secrets.GEMINI_API_KEY }}
+          GMAIL_ADDRESS:        ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD:   ${{ secrets.GMAIL_APP_PASSWORD }}
+          GITHUB_REPOSITORY:    ${{ github.repository }}
+        run: python newsletter.py
