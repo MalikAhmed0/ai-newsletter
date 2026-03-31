@@ -6,13 +6,21 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
   deploy:
     name: Build & Deploy to GitHub Pages
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: 📥 Checkout
@@ -23,16 +31,18 @@ jobs:
           FEEDBACK_TOKEN: ${{ secrets.FEEDBACK_TOKEN }}
           GITHUB_REPO:    ${{ github.repository }}
         run: |
-          mkdir -p gh-pages
+          mkdir -p _site
           sed \
             -e "s|__FEEDBACK_TOKEN__|${FEEDBACK_TOKEN}|g" \
             -e "s|__GITHUB_REPO__|${GITHUB_REPO}|g" \
-            docs/feedback.template.html > gh-pages/feedback.html
+            docs/feedback.template.html > _site/feedback.html
           echo "✅ feedback.html built"
 
-      - name: 🚀 Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: 📦 Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./gh-pages
-          publish_branch: gh-pages
+          path: _site
+
+      - name: 🚀 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
