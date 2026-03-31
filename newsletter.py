@@ -2,11 +2,11 @@
 """
 The AI Pulse — Personalized Daily Newsletter
 =============================================
+• Uses Serper.dev for Google Search (free tier: 2,500 searches)
+• Uses Gemini 2.0 Flash free tier for writing (no grounding needed)
 • Reads recipients from recipients.json
-• Loads per-user preferences from preferences/{uid}.json (GitHub raw)
-• Generates a personalized newsletter per recipient via Gemini + Search
-• Embeds a feedback link so each reader can tune their own newsletter
-• Sends via Gmail SMTP
+• Loads per-user preferences from preferences/{uid}.json
+• Sends personalized HTML email via Gmail SMTP
 """
 
 import hashlib
@@ -21,6 +21,7 @@ from urllib.parse import quote
 from urllib.request import urlopen
 
 import pytz
+import requests
 from google import genai
 from google.genai import types
 
@@ -35,18 +36,18 @@ log = logging.getLogger(__name__)
 # ── Config ────────────────────────────────────────────────────────────────────
 PKT = pytz.timezone("Asia/Karachi")
 
-# Automatically provided by GitHub Actions — no hardcoding needed
 GITHUB_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "")
 GITHUB_USERNAME   = GITHUB_REPOSITORY.split("/")[0] if "/" in GITHUB_REPOSITORY else ""
 REPO_NAME         = GITHUB_REPOSITORY.split("/")[1] if "/" in GITHUB_REPOSITORY else "ai-newsletter"
 FEEDBACK_BASE_URL = f"https://{GITHUB_USERNAME}.github.io/{REPO_NAME}/feedback.html"
 
-TOPICS = [
-    "LLMs and frontier AI models (GPT, Claude, Gemini, Llama — releases, benchmarks, capabilities)",
-    "Practical AI tools people can use today (apps, plugins, productivity tools, generators)",
-    "AI in business and enterprise (adoption, ROI, real-world deployments)",
-    "AI research breakthroughs (new papers, techniques, landmark lab results)",
-    "AI policy, safety and regulation (government actions, guidelines, ethical debates)",
+SEARCH_QUERIES = [
+    "LLM GPT Claude Gemini new model release today",
+    "AI tools apps product launch this week",
+    "artificial intelligence business enterprise deployment news",
+    "AI research breakthrough paper published today",
+    "AI regulation policy safety government news",
+    "wild funny surprising AI story today",
 ]
 
 
@@ -57,12 +58,10 @@ def load_recipients() -> list:
 
 
 def get_uid(email: str) -> str:
-    """Stable, URL-safe identifier derived from an email address."""
     return hashlib.md5(email.lower().strip().encode()).hexdigest()
 
 
 def load_preferences(uid: str) -> dict | None:
-    """Fetch this reader's preferences JSON from the public GitHub repo."""
     url = (
         f"https://raw.githubusercontent.com/{GITHUB_REPOSITORY}"
         f"/main/preferences/{uid}.json"
@@ -75,7 +74,6 @@ def load_preferences(uid: str) -> dict | None:
 
 
 def prefs_context(prefs: dict | None) -> str:
-    """Turn stored preferences into extra Gemini prompt context."""
     if not prefs:
         return ""
     lines = []
@@ -83,16 +81,13 @@ def prefs_context(prefs: dict | None) -> str:
     if history:
         avg = sum(history) / len(history)
         if avg < 3:
-            lines.append(
-                f"- Rating average: {avg:.1f}/5 — reader is NOT satisfied. "
-                "Make significant changes based on their instructions."
-            )
+            lines.append(f"- Rating average {avg:.1f}/5 — reader is NOT satisfied. Adjust significantly.")
         elif avg < 4:
-            lines.append(f"- Rating average: {avg:.1f}/5 — some room to improve.")
+            lines.append(f"- Rating average {avg:.1f}/5 — some room to improve.")
         else:
-            lines.append(f"- Rating average: {avg:.1f}/5 — reader enjoys this newsletter.")
+            lines.append(f"- Rating average {avg:.1f}/5 — reader enjoys this newsletter.")
     if prefs.get("instructions"):
-        lines.append(f"- Reader's explicit instructions: \"{prefs['instructions']}\"")
+        lines.append(f"- Reader's instructions: \"{prefs['instructions']}\"")
     if prefs.get("detail_level"):
         lines.append(f"- Preferred detail level: {prefs['detail_level']}")
     if prefs.get("tone_preference"):
@@ -106,24 +101,56 @@ def prefs_context(prefs: dict | None) -> str:
     return (
         "\n\n━━━ PERSONALIZATION FOR THIS READER ━━━\n"
         + "\n".join(lines)
-        + "\nApply these preferences when selecting stories and writing summaries. "
-        "This newsletter is generated uniquely for this person."
+        + "\nApply these preferences when selecting and writing stories."
     )
+
+
+# ── Serper Search ─────────────────────────────────────────────────────────────
+def search_news(queries: list) -> str:
+    api_key = os.environ["SERPER_API_KEY"]
+    all_results = []
+
+    for query in queries:
+        try:
+            resp = requests.post(
+                "https://google.serper.dev/news",
+                headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
+                json={"q": query, "num": 5, "tbs": "qdr:d2"},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            for item in data.get("news", []):
+                all_results.append(
+                    f"- {item.get('title','')}\n"
+                    f"  Source: {item.get('source','')}\n"
+                    f"  Date: {item.get('date','')}\n"
+                    f"  Snippet: {item.get('snippet','')}\n"
+                    f"  URL: {item.get('link','')}"
+                )
+        except Exception as e:
+            log.warning(f"Serper search failed for '{query}': {e}")
+
+    log.info(f"Fetched {len(all_results)} news items from Serper.")
+    return "\n\n".join(all_results)
 
 
 # ── Content Generation ────────────────────────────────────────────────────────
 def generate_content(client: genai.Client, date_str: str, prefs: dict | None) -> dict:
-    extra = prefs_context(prefs)
+    news_raw = search_news(SEARCH_QUERIES)
+    extra    = prefs_context(prefs)
 
     prompt = f"""Today is {date_str}. You are an expert AI journalist writing "The AI Pulse," a daily newsletter.
 
-Search the web RIGHT NOW for the most important and interesting AI news from the last 24–48 hours.
+Below is raw news data pulled from the web in the last 48 hours. Use it as your only source material.
 
-Cover these topic areas:
-{chr(10).join(f"  {i+1}. {t}" for i, t in enumerate(TOPICS))}
+━━━ RAW NEWS DATA ━━━
+{news_raw}
+━━━ END OF NEWS DATA ━━━
 {extra}
 
-Return ONLY a valid JSON object — no markdown fences, no preamble. Use exactly this schema:
+Using ONLY the news above (do not invent stories), write today's newsletter.
+Return ONLY a valid JSON object — no markdown fences, no preamble. Schema:
 
 {{
   "top_story": {{
@@ -131,7 +158,7 @@ Return ONLY a valid JSON object — no markdown fences, no preamble. Use exactly
     "summary": "2–3 sentences. What happened and why it changed things.",
     "why_it_matters": "One sentence that makes the reader feel smart for knowing this.",
     "source": "Publication name",
-    "url": "Full URL or empty string"
+    "url": "Full URL from the data above or empty string"
   }},
   "stories": [
     {{
@@ -140,38 +167,36 @@ Return ONLY a valid JSON object — no markdown fences, no preamble. Use exactly
       "summary": "2–3 concrete sentences. No vague hype.",
       "why_it_matters": "One insight sentence.",
       "source": "Publication name",
-      "url": "Full URL or empty string"
+      "url": "Full URL from the data above or empty string"
     }}
   ],
   "wild_story": {{
-    "headline": "Something surprising, funny, or jaw-dropping",
+    "headline": "Something surprising, funny, or jaw-dropping from the data",
     "summary": "2–3 sentences. Quirky, absurd, or mind-bending.",
     "source": "Publication name",
-    "url": "Full URL or empty string"
+    "url": "Full URL from the data above or empty string"
   }},
   "quick_bites": [
-    "Punchy one-liner #1 — a fact or stat worth repeating",
+    "Punchy one-liner — a fact or stat worth repeating",
     "Punchy one-liner #2",
     "Punchy one-liner #3"
   ]
 }}
 
 Rules:
-- stories must have exactly 5 items, one per topic area above
-- All content must be real, verified, from the last 48 hours
-- Headlines must name the specific company, model, or person
+- stories must have exactly 5 items covering different topic areas
+- Pick the most impressive, credible, recent stories from the data
+- Headlines must name specific companies, models, or people
 - wild_story must be genuinely surprising — not another serious piece
-- quick_bites should be facts someone would repeat at dinner
+- quick_bites should be punchy facts someone would repeat at dinner
+- Only use URLs that appear in the raw data above
 """
 
-    log.info("Calling Gemini with Google Search grounding…")
+    log.info("Calling Gemini to write newsletter…")
     response = client.models.generate_content(
         model="gemini-2.0-flash",
         contents=prompt,
-        config=types.GenerateContentConfig(
-            tools=[types.Tool(google_search=types.GoogleSearch())],
-            temperature=0.65,
-        ),
+        config=types.GenerateContentConfig(temperature=0.65),
     )
 
     raw = response.text.strip()
@@ -206,9 +231,7 @@ def topic_color(label: str) -> str:
     return "#8b5cf6"
 
 
-def render_html(
-    data: dict, date_str: str, recipient_name: str, feedback_url: str
-) -> str:
+def render_html(data: dict, date_str: str, recipient_name: str, feedback_url: str) -> str:
     top     = data["top_story"]
     stories = data["stories"]
     wild    = data["wild_story"]
@@ -256,7 +279,6 @@ def render_html(
         for b in bites
     )
 
-    # Clickable star links — each pre-fills the rating in the form
     stars_html = "".join(
         f'<a href="{feedback_url}&rating={i}" '
         f'style="font-size:30px;text-decoration:none;margin:0 3px;color:#f59e0b;">★</a>'
@@ -362,11 +384,11 @@ def render_html(
     <a href="{feedback_url}"
        style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);
               color:#fff;text-decoration:none;padding:13px 30px;border-radius:8px;
-              font-size:14px;font-weight:700;letter-spacing:0.3px;">
+              font-size:14px;font-weight:700;">
       ✏️ Rate &amp; Customize My Newsletter
     </a>
     <div style="font-size:11px;color:#94a3b8;margin-top:12px;line-height:1.7;">
-      Adjust the topics, depth, and tone of <em>your</em> newsletter.<br>
+      Adjust topics, depth, and tone of <em>your</em> newsletter.<br>
       Your feedback only affects your edition — not anyone else's.
     </div>
   </div>
@@ -374,7 +396,7 @@ def render_html(
   <!-- FOOTER -->
   <div style="text-align:center;padding:12px;color:#94a3b8;font-size:11px;line-height:1.8;">
     <div>The AI Pulse · Personalized daily digest</div>
-    <div>{date_str} · Powered by Gemini 2.0 Flash + Google Search</div>
+    <div>{date_str} · Powered by Serper + Gemini 2.0 Flash</div>
   </div>
 
 </div>
@@ -404,7 +426,7 @@ def send_email(html: str, subject: str, to_email: str, to_name: str) -> None:
 def main() -> None:
     log.info("━━━ The AI Pulse — starting ━━━")
 
-    required = ["GEMINI_API_KEY", "GMAIL_ADDRESS", "GMAIL_APP_PASSWORD"]
+    required = ["GEMINI_API_KEY", "SERPER_API_KEY", "GMAIL_ADDRESS", "GMAIL_APP_PASSWORD"]
     missing  = [v for v in required if not os.environ.get(v)]
     if missing:
         raise EnvironmentError(f"Missing environment variables: {missing}")
