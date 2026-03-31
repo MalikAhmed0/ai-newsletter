@@ -2,8 +2,8 @@
 """
 The AI Pulse — Personalized Daily Newsletter
 =============================================
-• Uses Serper.dev for Google Search (free tier: 2,500 searches)
-• Uses Gemini 2.0 Flash free tier for writing (no grounding needed)
+• Uses Serper.dev for Google Search (free: 2,500 searches)
+• Uses Groq (Llama 3.3 70B) for writing — completely free, no card needed
 • Reads recipients from recipients.json
 • Loads per-user preferences from preferences/{uid}.json
 • Sends personalized HTML email via Gmail SMTP
@@ -22,8 +22,6 @@ from urllib.request import urlopen
 
 import pytz
 import requests
-from google import genai
-from google.genai import types
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -40,6 +38,8 @@ GITHUB_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "")
 GITHUB_USERNAME   = GITHUB_REPOSITORY.split("/")[0] if "/" in GITHUB_REPOSITORY else ""
 REPO_NAME         = GITHUB_REPOSITORY.split("/")[1] if "/" in GITHUB_REPOSITORY else "ai-newsletter"
 FEEDBACK_BASE_URL = f"https://{GITHUB_USERNAME}.github.io/{REPO_NAME}/feedback.html"
+
+GROQ_MODEL = "llama-3.3-70b-versatile"
 
 SEARCH_QUERIES = [
     "LLM GPT Claude Gemini new model release today",
@@ -135,8 +135,28 @@ def search_news(queries: list) -> str:
     return "\n\n".join(all_results)
 
 
-# ── Content Generation ────────────────────────────────────────────────────────
-def generate_content(client: genai.Client, date_str: str, prefs: dict | None) -> dict:
+# ── Groq Generation ───────────────────────────────────────────────────────────
+def call_groq(prompt: str) -> str:
+    api_key = os.environ["GROQ_API_KEY"]
+    resp = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": GROQ_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.65,
+            "max_tokens": 4096,
+        },
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"].strip()
+
+
+def generate_content(date_str: str, prefs: dict | None) -> dict:
     news_raw = search_news(SEARCH_QUERIES)
     extra    = prefs_context(prefs)
 
@@ -150,12 +170,12 @@ Below is raw news data pulled from the web in the last 48 hours. Use it as your 
 {extra}
 
 Using ONLY the news above (do not invent stories), write today's newsletter.
-Return ONLY a valid JSON object — no markdown fences, no preamble. Schema:
+Return ONLY a valid JSON object — absolutely no markdown fences, no preamble, no explanation. Just raw JSON.
 
 {{
   "top_story": {{
     "headline": "Punchy, specific headline naming the company/model/person",
-    "summary": "2–3 sentences. What happened and why it changed things.",
+    "summary": "2-3 sentences. What happened and why it changed things.",
     "why_it_matters": "One sentence that makes the reader feel smart for knowing this.",
     "source": "Publication name",
     "url": "Full URL from the data above or empty string"
@@ -164,7 +184,7 @@ Return ONLY a valid JSON object — no markdown fences, no preamble. Schema:
     {{
       "topic": "One of: Tools | Business | Research | Policy | LLMs",
       "headline": "Specific headline",
-      "summary": "2–3 concrete sentences. No vague hype.",
+      "summary": "2-3 concrete sentences. No vague hype.",
       "why_it_matters": "One insight sentence.",
       "source": "Publication name",
       "url": "Full URL from the data above or empty string"
@@ -172,7 +192,7 @@ Return ONLY a valid JSON object — no markdown fences, no preamble. Schema:
   ],
   "wild_story": {{
     "headline": "Something surprising, funny, or jaw-dropping from the data",
-    "summary": "2–3 sentences. Quirky, absurd, or mind-bending.",
+    "summary": "2-3 sentences. Quirky, absurd, or mind-bending.",
     "source": "Publication name",
     "url": "Full URL from the data above or empty string"
   }},
@@ -190,21 +210,22 @@ Rules:
 - wild_story must be genuinely surprising — not another serious piece
 - quick_bites should be punchy facts someone would repeat at dinner
 - Only use URLs that appear in the raw data above
-"""
+- Output ONLY the JSON object, nothing else before or after it"""
 
-    log.info("Calling Gemini to write newsletter…")
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(temperature=0.65),
-    )
+    log.info("Calling Groq to write newsletter…")
+    raw = call_groq(prompt)
 
-    raw = response.text.strip()
-    if raw.startswith("```"):
+    # Strip markdown fences if model added them
+    if "```" in raw:
         parts = raw.split("```")
-        raw = parts[1] if len(parts) >= 2 else raw
-        if raw.lstrip().startswith("json"):
-            raw = raw.lstrip()[4:]
+        for part in parts:
+            part = part.strip()
+            if part.startswith("json"):
+                part = part[4:].strip()
+            if part.startswith("{"):
+                raw = part
+                break
+
     raw = raw.strip()
 
     try:
@@ -396,7 +417,7 @@ def render_html(data: dict, date_str: str, recipient_name: str, feedback_url: st
   <!-- FOOTER -->
   <div style="text-align:center;padding:12px;color:#94a3b8;font-size:11px;line-height:1.8;">
     <div>The AI Pulse · Personalized daily digest</div>
-    <div>{date_str} · Powered by Serper + Gemini 2.0 Flash</div>
+    <div>{date_str} · Powered by Serper + Groq (Llama 3.3)</div>
   </div>
 
 </div>
@@ -426,7 +447,7 @@ def send_email(html: str, subject: str, to_email: str, to_name: str) -> None:
 def main() -> None:
     log.info("━━━ The AI Pulse — starting ━━━")
 
-    required = ["GEMINI_API_KEY", "SERPER_API_KEY", "GMAIL_ADDRESS", "GMAIL_APP_PASSWORD"]
+    required = ["GROQ_API_KEY", "SERPER_API_KEY", "GMAIL_ADDRESS", "GMAIL_APP_PASSWORD"]
     missing  = [v for v in required if not os.environ.get(v)]
     if missing:
         raise EnvironmentError(f"Missing environment variables: {missing}")
@@ -435,7 +456,6 @@ def main() -> None:
     date_str = now.strftime("%A, %B %d, %Y")
     subject  = f"⚡ The AI Pulse — {now.strftime('%b %d, %Y')}"
 
-    client     = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     recipients = load_recipients()
     log.info(f"Sending to {len(recipients)} recipient(s)…")
 
@@ -449,7 +469,7 @@ def main() -> None:
         log.info(f"  Preferences: {'loaded' if prefs else 'none yet (using defaults)'}")
 
         feedback_url = f"{FEEDBACK_BASE_URL}?email={quote(email)}&uid={uid}"
-        data         = generate_content(client, date_str, prefs)
+        data         = generate_content(date_str, prefs)
         log.info(f"  Top story: {data['top_story']['headline'][:60]}…")
 
         html = render_html(data, date_str, name, feedback_url)
